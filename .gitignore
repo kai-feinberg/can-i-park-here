@@ -18,4 +18,5 @@ parkingApp/.DS_Store
 
 parkingApp/expo-env.d.ts
 backend/node_modules/
+backend/.env
 # @end expo-cli
