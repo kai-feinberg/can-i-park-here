@@ -1,32 +1,34 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Image } from 'react-native';
-import { Camera, CameraPermissionStatus, useCameraDevice } from 'react-native-vision-camera';
+import { Camera, CameraView } from 'expo-camera'; // Ensure this imports the Camera component
 import * as ImageManipulator from 'expo-image-manipulator';
-import * as MediaLibrary from 'expo-media-library';
+import { CameraType } from 'expo-camera/build/legacy/Camera.types';
 
 export default function App() {
-  const [cameraPermission, setCameraPermission] = useState<boolean |null>(null);
-  const camera = useRef<Camera>(null);
-  const device = useCameraDevice('back');
+  const [cameraPermission, setCameraPermission] = useState<boolean | null>(null);
+  const camera = useRef<any>(null); // Use the imported Camera type
 
   const [capturedImage, setCapturedImage] = useState<ImageManipulator.ImageResult | null>(null);
-  const [analysis, setAnalysis] = useState<string | null>(null); // Updated type to include string
+  const [analysis, setAnalysis] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
-      const cameraPermissionStatus = await Camera.requestCameraPermission();
-      setCameraPermission(cameraPermissionStatus === "granted");
+      const { status } = await Camera.requestCameraPermissionsAsync();
+      setCameraPermission(status === "granted");
     })();
   }, []);
 
   const takePicture = async () => {
     if (camera.current) {
       try {
-        const photo = await camera.current.takePhoto();
+        const photo = await camera.current.takePictureAsync({
+          quality: 0.5,
+          base64: true,
+        });
         
-        if (photo.path) {
+        if (photo.uri) {
           const manipResult = await ImageManipulator.manipulateAsync(
-            photo.path,
+            photo.uri,
             [{ resize: { width: 800 } }],
             { format: ImageManipulator.SaveFormat.JPEG, base64: true }
           );
@@ -41,7 +43,7 @@ export default function App() {
     }
   };
 
-  const analyzeImage = async (base64Image:string) => {
+  const analyzeImage = async (base64Image: string) => {
     try {
       const response = await fetch('http://192.168.1.16:3000/analyze-sign', {
         method: 'POST',
@@ -51,15 +53,17 @@ export default function App() {
         body: JSON.stringify({ image: base64Image }),
       });
       
+      console.log('Response:', response);
+      
       if (!response.ok) {
         throw new Error('Network response was not ok');
       }
       
-      const data = await response.json();
+      const data: { analysis: string } = await response.json();
       setAnalysis(data.analysis);
     } catch (error) {
       console.error('Error:', error);
-      setAnalysis('Failed to analyze image. Please try again.'); // No change needed here
+      setAnalysis('Failed to analyze image. Please try again.');
     }
   };
 
@@ -81,29 +85,23 @@ export default function App() {
           </TouchableOpacity>
         </View>
       ) : (
-        <View style={styles.buttonContainer}>
-          {device && ( // Check if device is defined
-            <Camera 
-              style={StyleSheet.absoluteFill}
-              device={device}
-              isActive={true}
-              photo={true}
-              ref={camera}
-            >
+        <View style={StyleSheet.absoluteFill}>
+          <CameraView 
+            style={styles.camera}
+            ref={camera}
+          >
+            <View style={styles.buttonContainer}>
               <TouchableOpacity style={styles.button} onPress={takePicture}>
                 <Text style={styles.buttonText}>Take Picture</Text>
               </TouchableOpacity>
-            </Camera>
-          )}
-          {/* <Image
-            source={require('./assets/overlay.png')}
-            style={styles.overlay} */}
-          {/* /> */}
+            </View>
+          </CameraView>
         </View>
       )}
     </View>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: {
