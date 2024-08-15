@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Image } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
 import { Camera, CameraView } from 'expo-camera'; // Ensure this imports the Camera component
 import * as ImageManipulator from 'expo-image-manipulator';
 import { CameraType } from 'expo-camera/build/legacy/Camera.types';
@@ -12,6 +12,7 @@ export default function App() {
 
   const [capturedImage, setCapturedImage] = useState<ImageManipulator.ImageResult | null>(null);
   const [analysis, setAnalysis] = useState<string | null>(null);
+  const [loading, setLoading] = useState<boolean>(false);
 
   useEffect(() => {
     (async () => {
@@ -27,7 +28,7 @@ export default function App() {
           quality: 0.5,
           base64: true,
         });
-        
+
         if (photo.uri) {
           const manipResult = await ImageManipulator.manipulateAsync(
             photo.uri,
@@ -49,15 +50,16 @@ export default function App() {
     }
   };
   const analyzeImage = async (base64Image: string) => {
+    setLoading(true);
     try {
       console.log('Preparing request to API...');
-  
+
       // Create a temporary file from the base64 image data
       const tempFilePath = FileSystem.documentDirectory + 'temp_image.jpg';
       await FileSystem.writeAsStringAsync(tempFilePath, base64Image, {
         encoding: FileSystem.EncodingType.Base64,
       });
-  
+
       // Create FormData and append the image file
       const formData = new FormData();
       formData.append('image', {
@@ -65,20 +67,20 @@ export default function App() {
         name: 'image.jpg',
         type: 'image/jpeg'
       } as any);
-  
+
       console.log('Sending request to API...');
       const response = await axios.post('http://192.168.1.16:3000/analyze-sign', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
-        timeout: 60000 // 60 seconds timeout
+        timeout: 60000 // 60 seconds
       });
-      
+
       console.log('Response status:', response.status);
       console.log('Received data:', response.data);
-      
+
       setAnalysis(response.data.analysis);
-  
+
       // Clean up the temporary file
       await FileSystem.deleteAsync(tempFilePath);
     } catch (error) {
@@ -94,30 +96,10 @@ export default function App() {
       }
       setAnalysis('Failed to analyze image. Please try again.');
     }
+    finally {
+      setLoading(false);
+    }
   };
-  // const analyzeImage = async (base64Image: string) => {
-  //   try {
-  //     const response = await fetch('http://192.168.1.16:3000/analyze-sign', {
-  //       method: 'POST',
-  //       headers: {
-  //         'Content-Type': 'application/json',
-  //       },
-  //       body: JSON.stringify({ image: base64Image }),
-  //     });
-      
-  //     console.log('Response:', response);
-      
-  //     if (!response.ok) {
-  //       throw new Error('Network response was not ok');
-  //     }
-      
-  //     const data: { analysis: string } = await response.json();
-  //     setAnalysis(data.analysis);
-  //   } catch (error) {
-  //     console.error('Error:', error);
-  //     setAnalysis('Failed to analyze image. Please try again.');
-  //   }
-  // };
 
   if (cameraPermission === null) {
     return <View />;
@@ -131,18 +113,37 @@ export default function App() {
       {capturedImage ? (
         <View style={styles.resultsContainer}>
           <Image source={{ uri: capturedImage.uri }} style={styles.capturedImage} />
-          <Text style={styles.analysisText}>{analysis || 'Analyzing...'}</Text>
+          {loading ? (
+
+            <View>
+              <ActivityIndicator size="large" color="#0000ff" />
+              <Text style={styles.analysisText}>Analyzing...this may take a few seconds</Text>
+            </View>
+
+          ) : (
+            <Text style={styles.analysisText}>{analysis || 'Analyzing...'}</Text>
+          )}
           <TouchableOpacity style={styles.button} onPress={() => setCapturedImage(null)}>
             <Text style={styles.buttonText}>Take Another Picture</Text>
           </TouchableOpacity>
         </View>
       ) : (
         <View style={StyleSheet.absoluteFill}>
-          <CameraView 
+          <CameraView
             style={styles.camera}
             ref={camera}
           >
             <View style={styles.buttonContainer}>
+
+              {/* Overlay with corner borders */}
+              <View style={styles.overlayContainer}>
+                <View style={styles.overlayBox}>
+                  <View style={styles.cornerTopLeft}></View>
+                  <View style={styles.cornerTopRight}></View>
+                  <View style={styles.cornerBottomLeft}></View>
+                  <View style={styles.cornerBottomRight}></View>
+                </View>
+              </View>
               <TouchableOpacity style={styles.button} onPress={takePicture}>
                 <Text style={styles.buttonText}>Take Picture</Text>
               </TouchableOpacity>
@@ -207,5 +208,59 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 20,
     color: '#333',
+  },
+  overlayContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  overlayBox: {
+    width: 300, // Adjust the size
+    height: 600, // Adjust the size
+    position: 'relative',
+  },
+  cornerTopLeft: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: 40, // Adjust corner size
+    height: 40, // Adjust corner size
+    borderTopWidth: 5,
+    borderLeftWidth: 5,
+    borderColor: 'white',
+  },
+  cornerTopRight: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 40, // Adjust corner size
+    height: 40, // Adjust corner size
+    borderTopWidth: 5,
+    borderRightWidth: 5,
+    borderColor: 'white',
+  },
+  cornerBottomLeft: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    width: 40, // Adjust corner size
+    height: 40, // Adjust corner size
+    borderBottomWidth: 5,
+    borderLeftWidth: 5,
+    borderColor: 'white',
+  },
+  cornerBottomRight: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 40, // Adjust corner size
+    height: 40, // Adjust corner size
+    borderBottomWidth: 5,
+    borderRightWidth: 5,
+    borderColor: 'white',
   },
 });
