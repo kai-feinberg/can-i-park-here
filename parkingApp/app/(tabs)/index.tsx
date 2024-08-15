@@ -3,6 +3,8 @@ import { StyleSheet, Text, View, TouchableOpacity, Image } from 'react-native';
 import { Camera, CameraView } from 'expo-camera'; // Ensure this imports the Camera component
 import * as ImageManipulator from 'expo-image-manipulator';
 import { CameraType } from 'expo-camera/build/legacy/Camera.types';
+import axios from 'axios';
+import * as FileSystem from 'expo-file-system';
 
 export default function App() {
   const [cameraPermission, setCameraPermission] = useState<boolean | null>(null);
@@ -34,7 +36,11 @@ export default function App() {
           );
           setCapturedImage(manipResult);
           if (manipResult.base64) {
+            console.log('Base64 image:', manipResult.base64.substring(0, 10));
             analyzeImage(manipResult.base64);
+          }
+          else {
+            console.log("No base64 image found");
           }
         }
       } catch (error) {
@@ -42,30 +48,76 @@ export default function App() {
       }
     }
   };
-
   const analyzeImage = async (base64Image: string) => {
     try {
-      const response = await fetch('http://192.168.1.16:3000/analyze-sign', {
-        method: 'POST',
+      console.log('Preparing request to API...');
+  
+      // Create a temporary file from the base64 image data
+      const tempFilePath = FileSystem.documentDirectory + 'temp_image.jpg';
+      await FileSystem.writeAsStringAsync(tempFilePath, base64Image, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+  
+      // Create FormData and append the image file
+      const formData = new FormData();
+      formData.append('image', {
+        uri: tempFilePath,
+        name: 'image.jpg',
+        type: 'image/jpeg'
+      } as any);
+  
+      console.log('Sending request to API...');
+      const response = await axios.post('http://192.168.1.16:3000/analyze-sign', formData, {
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'multipart/form-data',
         },
-        body: JSON.stringify({ image: base64Image }),
+        timeout: 60000 // 60 seconds timeout
       });
       
-      console.log('Response:', response);
+      console.log('Response status:', response.status);
+      console.log('Received data:', response.data);
       
-      if (!response.ok) {
-        throw new Error('Network response was not ok');
-      }
-      
-      const data: { analysis: string } = await response.json();
-      setAnalysis(data.analysis);
+      setAnalysis(response.data.analysis);
+  
+      // Clean up the temporary file
+      await FileSystem.deleteAsync(tempFilePath);
     } catch (error) {
-      console.error('Error:', error);
+      if (axios.isAxiosError(error)) {
+        console.error('Axios error:', error.message);
+        console.error('Error code:', error.code);
+        console.error('Error response:', error.response);
+        if (error.request) {
+          console.error('Error request:', error.request);
+        }
+      } else {
+        console.error('Unexpected error:', error);
+      }
       setAnalysis('Failed to analyze image. Please try again.');
     }
   };
+  // const analyzeImage = async (base64Image: string) => {
+  //   try {
+  //     const response = await fetch('http://192.168.1.16:3000/analyze-sign', {
+  //       method: 'POST',
+  //       headers: {
+  //         'Content-Type': 'application/json',
+  //       },
+  //       body: JSON.stringify({ image: base64Image }),
+  //     });
+      
+  //     console.log('Response:', response);
+      
+  //     if (!response.ok) {
+  //       throw new Error('Network response was not ok');
+  //     }
+      
+  //     const data: { analysis: string } = await response.json();
+  //     setAnalysis(data.analysis);
+  //   } catch (error) {
+  //     console.error('Error:', error);
+  //     setAnalysis('Failed to analyze image. Please try again.');
+  //   }
+  // };
 
   if (cameraPermission === null) {
     return <View />;
