@@ -8,7 +8,7 @@ import * as FileSystem from 'expo-file-system';
 
 export default function App() {
   const [cameraPermission, setCameraPermission] = useState<boolean | null>(null);
-  const camera = useRef<any>(null); // Use the imported Camera type
+  const camera = useRef<any>(null);
 
   const [capturedImage, setCapturedImage] = useState<ImageManipulator.ImageResult | null>(null);
   const [analysis, setAnalysis] = useState<string | null>(null);
@@ -60,6 +60,11 @@ export default function App() {
         encoding: FileSystem.EncodingType.Base64,
       });
 
+      const now = new Date();
+      const dayOfWeek = now.toLocaleDateString('en-US', { weekday: 'long' });
+      const date = now.toLocaleDateString('en-US');
+      const time = now.toLocaleTimeString('en-US');
+
       // Create FormData and append the image file
       const formData = new FormData();
       formData.append('image', {
@@ -67,6 +72,13 @@ export default function App() {
         name: 'image.jpg',
         type: 'image/jpeg'
       } as any);
+      formData.append('dayOfWeek', dayOfWeek);
+      formData.append('date', date);
+      formData.append('time', time);
+
+      console.log("dayOfWeek", dayOfWeek);
+      console.log("date", date);
+      console.log("time", time);
 
       console.log('Sending request to API...');
       const response = await axios.post('http://192.168.1.16:3000/analyze-sign', formData, {
@@ -121,11 +133,13 @@ export default function App() {
             </View>
 
           ) : (
-            <Text style={styles.analysisText}>{analysis || 'Analyzing...'}</Text>
+            <View>
+              <Text style={styles.analysisText}>{analysis || 'Analyzing...'}</Text>
+                        <TouchableOpacity style={styles.button} onPress={() => setCapturedImage(null)}>
+              <Text style={styles.buttonText}>Take Another Picture</Text>
+                        </TouchableOpacity>
+            </View>
           )}
-          <TouchableOpacity style={styles.button} onPress={() => setCapturedImage(null)}>
-            <Text style={styles.buttonText}>Take Another Picture</Text>
-          </TouchableOpacity>
         </View>
       ) : (
         <View style={StyleSheet.absoluteFill}>
